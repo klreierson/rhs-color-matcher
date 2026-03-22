@@ -1853,15 +1853,39 @@ function setPickerFromHsl(h, s, l) {
 }
 
 /* Click-to-sample on the displayed image */
+/* Account for object-fit:cover cropping when mapping touch → pixel */
+function getCoverMapping(imgEl) {
+  const rect = imgEl.getBoundingClientRect();
+  const natW = imgCanvas.width, natH = imgCanvas.height;
+  const elW = rect.width, elH = rect.height;
+  const natAspect = natW / natH;
+  const elAspect = elW / elH;
+  let visW, visH, offX, offY;
+  if (natAspect > elAspect) {
+    /* image is wider than element: cropped left/right */
+    visH = natH;
+    visW = natH * elAspect;
+    offX = (natW - visW) / 2;
+    offY = 0;
+  } else {
+    /* image is taller than element: cropped top/bottom */
+    visW = natW;
+    visH = natW / elAspect;
+    offX = 0;
+    offY = (natH - visH) / 2;
+  }
+  return { rect, visW, visH, offX, offY };
+}
+
 function samplePixelAt(clientX, clientY) {
   const imgEl = dropZone.querySelector('img');
   if (!imgEl || !imgCanvas) return;
-  const rect = imgEl.getBoundingClientRect();
+  const { rect, visW, visH, offX, offY } = getCoverMapping(imgEl);
   const px = (clientX - rect.left) / rect.width;
   const py = (clientY - rect.top) / rect.height;
   if (px < 0 || px > 1 || py < 0 || py > 1) return;
-  const sx = Math.floor(px * imgCanvas.width);
-  const sy = Math.floor(py * imgCanvas.height);
+  const sx = Math.floor(offX + px * visW);
+  const sy = Math.floor(offY + py * visH);
   const pixel = imgCtx.getImageData(sx, sy, 1, 1).data;
   const [h, s, l] = rgbToHsl(pixel[0], pixel[1], pixel[2]);
 
@@ -1886,18 +1910,19 @@ function samplePixelAt(clientX, clientY) {
 const LOUPE_ZOOM = 4; /* magnification factor */
 const LOUPE_SIZE = 90;
 
-function updateLoupe(px, py) {
+function updateLoupe(px, py, imgEl) {
   const loupe = document.getElementById('touchLoupe');
   if (!loupe || !imgCanvas) return;
   loupe.classList.add('visible');
   /* Position loupe above the sample point */
   loupe.style.left = (px * 100) + '%';
   loupe.style.top  = (py * 100) + '%';
-  /* Draw zoomed region from the source image */
+  /* Draw zoomed region — account for object-fit:cover */
   const lCanvas = loupe.querySelector('canvas');
   const lCtx = lCanvas.getContext('2d');
-  const srcX = px * imgCanvas.width;
-  const srcY = py * imgCanvas.height;
+  const { offX, offY, visW, visH } = getCoverMapping(imgEl);
+  const srcX = offX + px * visW;
+  const srcY = offY + py * visH;
   const srcRadius = (LOUPE_SIZE / 2) / LOUPE_ZOOM;
   lCtx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
   /* Clip to circle */
@@ -1933,13 +1958,12 @@ dropZone.addEventListener('touchstart', e => {
   imgDown = true; isTouchSampling = true;
   e.preventDefault();
   samplePixelAt(e.touches[0].clientX, e.touches[0].clientY);
-  /* Show loupe on touch */
   const imgEl = dropZone.querySelector('img');
   if (imgEl) {
     const rect = imgEl.getBoundingClientRect();
     const px = (e.touches[0].clientX - rect.left) / rect.width;
     const py = (e.touches[0].clientY - rect.top) / rect.height;
-    if (px >= 0 && px <= 1 && py >= 0 && py <= 1) updateLoupe(px, py);
+    if (px >= 0 && px <= 1 && py >= 0 && py <= 1) updateLoupe(px, py, imgEl);
   }
 }, { passive: false });
 
@@ -1947,13 +1971,12 @@ dropZone.addEventListener('touchmove', e => {
   if (!imgDown) return;
   e.preventDefault();
   samplePixelAt(e.touches[0].clientX, e.touches[0].clientY);
-  /* Update loupe position */
   const imgEl = dropZone.querySelector('img');
   if (imgEl) {
     const rect = imgEl.getBoundingClientRect();
     const px = (e.touches[0].clientX - rect.left) / rect.width;
     const py = (e.touches[0].clientY - rect.top) / rect.height;
-    if (px >= 0 && px <= 1 && py >= 0 && py <= 1) updateLoupe(px, py);
+    if (px >= 0 && px <= 1 && py >= 0 && py <= 1) updateLoupe(px, py, imgEl);
   }
 }, { passive: false });
 
