@@ -2309,18 +2309,18 @@ renderChart();
   const pickerCloseBtn = document.getElementById('pickerCloseBtn');
 
   const openCameraBtn = document.getElementById('openCameraBtn');
-  const topNav = document.querySelector('.top-nav');
+  const openBatchBtn = document.getElementById('openBatchBtn');
   function openPicker() {
     pickerOverlay.classList.add('visible');
-    openPickerBtn.classList.add('picker-open');
-    openCameraBtn.classList.add('picker-open');
-    if (topNav) topNav.style.display = 'none';
+    openPickerBtn.style.display = 'none';
+    openCameraBtn.style.display = 'none';
+    if (openBatchBtn) openBatchBtn.style.display = 'none';
   }
   function closePicker() {
     pickerOverlay.classList.remove('visible');
-    openPickerBtn.classList.remove('picker-open');
-    openCameraBtn.classList.remove('picker-open');
-    if (topNav) topNav.style.display = '';
+    openPickerBtn.style.display = '';
+    openCameraBtn.style.display = '';
+    if (openBatchBtn) openBatchBtn.style.display = '';
   }
   openPickerBtn.addEventListener('click', () => {
     pickerOverlay.classList.contains('visible') ? closePicker() : openPicker();
