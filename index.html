@@ -1880,12 +1880,28 @@ function getCoverMapping(imgEl) {
 function samplePixelAt(clientX, clientY) {
   const imgEl = dropZone.querySelector('img');
   if (!imgEl || !imgCanvas) return;
-  const { rect, visW, visH, offX, offY } = getCoverMapping(imgEl);
-  const px = (clientX - rect.left) / rect.width;
-  const py = (clientY - rect.top) / rect.height;
+
+  /* Use the wrapper rect for cursor positioning (cursor lives inside wrapper).
+     The <img> may be taller than the wrapper due to aspect-ratio:1 + overflow:hidden,
+     so imgEl.getBoundingClientRect() would give wrong percentages for the cursor. */
+  const wrapper = imgEl.closest('.image-wrapper') || imgEl.parentElement;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const imgRect = imgEl.getBoundingClientRect();
+
+  /* px, py = normalised position within the visible (wrapper) area */
+  const px = (clientX - wrapperRect.left) / wrapperRect.width;
+  const py = (clientY - wrapperRect.top) / wrapperRect.height;
   if (px < 0 || px > 1 || py < 0 || py > 1) return;
-  const sx = Math.floor(offX + px * visW);
-  const sy = Math.floor(offY + py * visH);
+
+  /* Convert wrapper-relative coords to img-element-relative coords.
+     The img may overflow the wrapper; visible region starts at the same top-left. */
+  const imgPx = (wrapperRect.left - imgRect.left + px * wrapperRect.width) / imgRect.width;
+  const imgPy = (wrapperRect.top  - imgRect.top  + py * wrapperRect.height) / imgRect.height;
+
+  /* Map to canvas pixels using object-fit:cover geometry */
+  const { visW, visH, offX, offY } = getCoverMapping(imgEl);
+  const sx = Math.floor(offX + imgPx * visW);
+  const sy = Math.floor(offY + imgPy * visH);
   const pixel = imgCtx.getImageData(sx, sy, 1, 1).data;
   const [h, s, l] = rgbToHsl(pixel[0], pixel[1], pixel[2]);
 
@@ -1914,15 +1930,23 @@ function updateLoupe(px, py, imgEl) {
   const loupe = document.getElementById('touchLoupe');
   if (!loupe || !imgCanvas) return;
   loupe.classList.add('visible');
-  /* Position loupe above the sample point */
+  /* Position loupe above the sample point (px, py are wrapper-relative) */
   loupe.style.left = (px * 100) + '%';
   loupe.style.top  = (py * 100) + '%';
+
+  /* Convert wrapper-relative to img-element-relative for canvas sampling */
+  const wrapper = imgEl.closest('.image-wrapper') || imgEl.parentElement;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const imgRect = imgEl.getBoundingClientRect();
+  const imgPx = (wrapperRect.left - imgRect.left + px * wrapperRect.width) / imgRect.width;
+  const imgPy = (wrapperRect.top  - imgRect.top  + py * wrapperRect.height) / imgRect.height;
+
   /* Draw zoomed region — account for object-fit:cover */
   const lCanvas = loupe.querySelector('canvas');
   const lCtx = lCanvas.getContext('2d');
   const { offX, offY, visW, visH } = getCoverMapping(imgEl);
-  const srcX = offX + px * visW;
-  const srcY = offY + py * visH;
+  const srcX = offX + imgPx * visW;
+  const srcY = offY + imgPy * visH;
   const srcRadius = (LOUPE_SIZE / 2) / LOUPE_ZOOM;
   lCtx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
   /* Clip to circle */
@@ -1960,7 +1984,8 @@ dropZone.addEventListener('touchstart', e => {
   samplePixelAt(e.touches[0].clientX, e.touches[0].clientY);
   const imgEl = dropZone.querySelector('img');
   if (imgEl) {
-    const rect = imgEl.getBoundingClientRect();
+    const wrapper = imgEl.closest('.image-wrapper') || imgEl.parentElement;
+    const rect = wrapper.getBoundingClientRect();
     const px = (e.touches[0].clientX - rect.left) / rect.width;
     const py = (e.touches[0].clientY - rect.top) / rect.height;
     if (px >= 0 && px <= 1 && py >= 0 && py <= 1) updateLoupe(px, py, imgEl);
@@ -1973,7 +1998,8 @@ dropZone.addEventListener('touchmove', e => {
   samplePixelAt(e.touches[0].clientX, e.touches[0].clientY);
   const imgEl = dropZone.querySelector('img');
   if (imgEl) {
-    const rect = imgEl.getBoundingClientRect();
+    const wrapper = imgEl.closest('.image-wrapper') || imgEl.parentElement;
+    const rect = wrapper.getBoundingClientRect();
     const px = (e.touches[0].clientX - rect.left) / rect.width;
     const py = (e.touches[0].clientY - rect.top) / rect.height;
     if (px >= 0 && px <= 1 && py >= 0 && py <= 1) updateLoupe(px, py, imgEl);
